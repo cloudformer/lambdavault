@@ -22,5 +22,8 @@ def test_storage_and_seal_come_from_the_environment_terraform_sets():
     assert "AWS_S3_BUCKET" in tf and "VAULT_AWSKMS_SEAL_KEY_ID" in tf
 
 
-def test_one_vault_process_at_a_time():
-    assert "reserved_concurrent_executions = 1" in read("terraform", "main.tf")
+def test_one_vault_process_at_a_time_behind_the_proxy():
+    tf = read("terraform", "main.tf")
+    assert "reserved_concurrent_executions = 1" in tf
+    # the only public entrance is the proxy's URL; the Vault function has none
+    assert tf.count('resource "aws_lambda_function_url"') == 1 and "function_name      = aws_lambda_function.proxy.function_name" in tf

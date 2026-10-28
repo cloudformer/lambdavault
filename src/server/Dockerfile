@@ -2,7 +2,7 @@
 # Lambda invocation into an HTTP request to Vault on 127.0.0.1:8200 and Vault's reply into the response.
 FROM public.ecr.aws/awsguru/aws-lambda-adapter:1.0.1 AS adapter
 
-FROM hashicorp/vault:1.20.3
+FROM hashicorp/vault:2.2.0
 COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
 COPY vault.hcl /etc/lambdavault/vault.hcl
 

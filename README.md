@@ -12,7 +12,7 @@
 | | Vault on EC2 (self-managed) | HCP Vault Dedicated | lambdavault |
 |---|---|---|---|
 | Idle cost / month | the instances (3 for HA), load balancer, disks | ≈ $450 (Development) · ≈ $1,150+ (Essentials) | ≈ $1 (the KMS key) |
-| Runs | Vault Community on your instances | Vault Enterprise, by HashiCorp | Vault Community 1.20.3 in Lambda |
+| Runs | Vault Community on your instances | Vault Enterprise, by HashiCorp | Vault Community 2.2.0 in Lambda |
 | Storage | Raft on the instances' disks | HashiCorp's cloud | S3 in your account (versioned), Vault-encrypted |
 | Unseal | manual or KMS | managed | KMS, by Vault itself at every cold start |
 | Endpoint | your load balancer | HCP | Lambda Function URL (HTTPS) |
@@ -32,7 +32,8 @@ is being answered; S3 and KMS keep the state and the key.
 invocation into an HTTP request to Vault on `127.0.0.1:8200`. Vault's config (`src/server/vault.hcl`) uses the
 `s3` storage backend and the `awskms` seal, so a cold start reads its state from S3 and unseals itself with
 KMS. The function's reserved concurrency is 1: the s3 backend has no lock, so exactly one Vault process ever
-writes. Terraform builds the image for arm64 and x86_64, pushes both to ECR and deploys one
+writes. The public URL belongs to a small proxy Lambda (`src/proxy`) that queues concurrent callers for that one
+Vault instead of letting Lambda refuse them with 429. Terraform builds the image for arm64 and x86_64, pushes both to ECR and deploys one
 (`architecture`, default arm64).
 
 ## Quick start
@@ -78,13 +79,13 @@ data "vault_kv_secret_v2" "app" {
 
 Open `<vault_addr>/ui/` in a browser for the Vault UI.
 
-Until task 1 is done, run Terraform with `-parallelism=1` when it reads many secrets: one Vault process answers
-one request at a time and a concurrent one gets 429.
+Concurrent callers (Terraform's parallel reads, the UI's assets) are queued by the proxy and served one after
+another; a caller waits up to 25 s for its turn.
 
 ## Compatibility
 
 Both sides run the same Vault binary, so the report checks that Vault on Lambda answers exactly like a normal
-Vault: the same hvac calls on Vault 1.20.3 in Docker and on the deployed stack, compared step by step.
+Vault: the same hvac calls on Vault 2.2.0 in Docker and on the deployed stack, compared step by step.
 
 ```bash
 LAMBDAVAULT_TOKEN=<token> python3 -m pytest tests -q --docker run --aws my.json   # Vault in Docker vs the deployed lambdavault
@@ -103,15 +104,16 @@ python3 -m pytest tests -q                               # regression suite only
 ## Who this is for
 
 Teams that use Vault for static secrets (KV), tokens, policies and auth methods such as userpass, at a few
-requests per second. Not yet: many concurrent callers (task 1), Raft / replication / Enterprise features.
+requests per second (callers queue for the one Vault). Not for: high request rates, Raft / replication / Enterprise features.
 See MIGRATION.md for moving to a Vault cluster.
 
 ## Repository layout
 
 ```
 src/server/       Dockerfile (Vault + Lambda Web Adapter), vault.hcl
+src/proxy/        the public entrance: queues callers for the one Vault
 client/           the pip package lambdavault: status, output (optional helper)
-terraform/        S3 (versioned), a KMS key (the seal), ECR, the Lambda, its Function URL
+terraform/        S3 (versioned), a KMS key (the seal), ECR, the Vault Lambda, the proxy Lambda + its URL
 tests/            regression suite; tests/compat/ Vault vs lambdavault, REPORT.md, TASKS.md
 ```
 

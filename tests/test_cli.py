@@ -20,7 +20,7 @@ def vault():
 
         def do_GET(self):
             code, body = (429, {"errors": ["busy"]}) if state["busy"] else \
-                (200, {"initialized": state["initialized"], "sealed": False, "version": "1.20.3"})
+                (200, {"initialized": state["initialized"], "sealed": False, "version": "2.2.0"})
             state["busy"] = max(0, state["busy"] - 1)
             data = json.dumps(body).encode()
             self.send_response(code)
@@ -61,7 +61,7 @@ def test_addr_overrides_terraform(terraform, capsys):
 def test_status(terraform, vault, capsys):
     cli.main(["status"])
     out = capsys.readouterr().out
-    assert "initialized True" in out and "Vault 1.20.3" in out
+    assert "initialized True" in out and "Vault 2.2.0" in out
 
 
 def test_status_says_how_to_initialize(terraform, vault, capsys):
@@ -73,7 +73,7 @@ def test_status_says_how_to_initialize(terraform, vault, capsys):
 def test_busy_function_is_retried(terraform, vault, capsys):
     vault["busy"] = 2   # reserved concurrency 1: a second caller gets 429 while the function is busy
     cli.main(["status"])
-    assert "Vault 1.20.3" in capsys.readouterr().out
+    assert "Vault 2.2.0" in capsys.readouterr().out
 
 
 def test_not_deployed_says_so(monkeypatch):

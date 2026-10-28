@@ -7,7 +7,7 @@ locals {
   image_uri  = "${local.image_repo}:${local.image_tag}-${var.architecture}" # the one this deployment runs
   registry   = split("/", aws_ecr_repository.server.repository_url)[0]
   profile    = var.aws_profile != "" ? "--profile ${var.aws_profile}" : ""
-  vault_addr = trimsuffix(aws_lambda_function_url.server.function_url, "/")
+  vault_addr = trimsuffix(aws_lambda_function_url.proxy.function_url, "/")
 }
 
 data "aws_caller_identity" "me" {}
@@ -115,7 +115,7 @@ resource "aws_iam_role_policy" "lambda" {
   })
 }
 
-# ---------------- the service: one Lambda + Function URL (Vault API and Vault UI) ----------------
+# ---------------- Vault: one Lambda, no URL of its own (only the proxy invokes it) ----------------
 resource "aws_lambda_function" "server" {
   function_name = "${var.name}-lambda"
   role          = aws_iam_role.lambda.arn
@@ -126,7 +126,7 @@ resource "aws_lambda_function" "server" {
   memory_size   = var.memory_size
 
   # one Vault process at a time: the s3 storage backend has no lock, two writers would corrupt it.
-  # A request that arrives while it is busy gets 429 (concurrency handling: next phase).
+  # Concurrent callers wait in the proxy for their turn.
   reserved_concurrent_executions = 1
 
   environment {
@@ -139,17 +139,74 @@ resource "aws_lambda_function" "server" {
   depends_on = [terraform_data.image]
 }
 
+# ---------------- the proxy: the public entrance, queues callers for the one Vault (src/proxy) ----------------
+data "archive_file" "proxy" {
+  type        = "zip"
+  source_file = "${path.module}/../src/proxy/lambda_function.py"
+  output_path = "${path.module}/.build/proxy.zip"
+}
+
+resource "aws_iam_role" "proxy" {
+  name = "${var.name}-proxy-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "proxy" {
+  name = "${var.name}-proxy-role-policy"
+  role = aws_iam_role.proxy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = aws_lambda_function.server.arn
+      },
+    ]
+  })
+}
+
+resource "aws_lambda_function" "proxy" {
+  function_name    = "${var.name}-proxy-lambda"
+  role             = aws_iam_role.proxy.arn
+  runtime          = "python3.12"
+  architectures    = [var.architecture]
+  handler          = "lambda_function.lambda_handler"
+  filename         = data.archive_file.proxy.output_path
+  source_code_hash = data.archive_file.proxy.output_base64sha256
+  timeout          = 60 # up to 25 s waiting for a turn + up to 30 s for Vault
+  memory_size      = 128
+
+  environment {
+    variables = {
+      VAULT_FUNCTION = aws_lambda_function.server.function_name
+    }
+  }
+}
+
 # NONE: the URL is public and Vault's own tokens are the gate (as on an EC2 Vault behind a load balancer).
 # A public URL needs BOTH permission statements (AWS requirement since Oct 2025).
-resource "aws_lambda_function_url" "server" {
-  function_name      = aws_lambda_function.server.function_name
+resource "aws_lambda_function_url" "proxy" {
+  function_name      = aws_lambda_function.proxy.function_name
   authorization_type = "NONE"
 }
 
 resource "aws_lambda_permission" "url" {
   statement_id           = "AllowPublicFunctionUrl"
   action                 = "lambda:InvokeFunctionUrl"
-  function_name          = aws_lambda_function.server.function_name
+  function_name          = aws_lambda_function.proxy.function_name
   principal              = "*"
   function_url_auth_type = "NONE"
 }
@@ -157,7 +214,7 @@ resource "aws_lambda_permission" "url" {
 resource "aws_lambda_permission" "url_invoke" {
   statement_id             = "AllowPublicFunctionUrlInvoke"
   action                   = "lambda:InvokeFunction"
-  function_name            = aws_lambda_function.server.function_name
+  function_name            = aws_lambda_function.proxy.function_name
   principal                = "*"
   invoked_via_function_url = true
 }

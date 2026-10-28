@@ -13,3 +13,4 @@ cloudformation/params.json
 client/dist/
 client/build/
 client/*.egg-info/
+readme.local

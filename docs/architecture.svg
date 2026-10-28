@@ -89,7 +89,7 @@
   <g transform="translate(430,160)">
     <rect width="86" height="86" rx="10" fill="url(#gCompute)"/>
     <text x="43" y="62" text-anchor="middle" font-size="50" font-weight="700" fill="#FFFFFF">λ</text>
-    <text x="43" y="108" text-anchor="middle" class="label">Vault 1.20.3</text>
+    <text x="43" y="108" text-anchor="middle" class="label">Vault 2.2.0</text>
     <text x="43" y="124" text-anchor="middle" class="sub">official binary, unchanged</text>
   </g>
   <g transform="translate(540,160)">
