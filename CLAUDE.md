@@ -1,4 +1,4 @@
-# <project> — working notes for Claude
+# lambdavault — working notes for Claude
 
 This repository is one project of the **Redefine AWS Serverless** series (SERIES.md): an AWS service that
 bills while idle, rebuilt on primitives that cost ≈ $0 when idle, behind the standard client's API.
@@ -54,6 +54,9 @@ s3rds (github.com/cloudformer/s3rds) is the reference implementation; when in do
 8. **Terraform first, every command from the repo root.** 0.1.0 ships Terraform only
    (`terraform -chdir=terraform …`); CloudFormation is optional and comes later, producing the same
    resources. `example.json` / `example-params.json` are committed, real variable files are gitignored. Least-privilege IAM. Destroy must work.
+   Everything built for a Lambda (Linux wheels, container images) is built for both arm64 and x86_64, and
+   both are tested; a deployment runs one, `var.architecture`, default arm64 (~20% cheaper). Switching it
+   needs no rebuild.
 9. **Guarantees are stated and pinned by tests.** Atomicity, durability, isolation, retry policy ("fail
    rather than duplicate a write") each get one line in the README and a test.
 10. **Release = tag.** `git tag vX.Y.Z && git push --tags` runs tests, builds `client/`, publishes to PyPI via

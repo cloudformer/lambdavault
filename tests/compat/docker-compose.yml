@@ -1,4 +1,4 @@
-# The real service for the compatibility tests. All three are defined; only the one you name starts:
+# The real service for the compatibility tests. All are defined; only the one you name starts:
 #   docker compose -f tests/compat/docker-compose.yml up -d <TEST_CONTAINER>
 #   <TEST_DSN> python3 -m pytest tests -q
 #   docker compose -f tests/compat/docker-compose.yml down
@@ -19,3 +19,9 @@ services:
     environment: { POSTGRES_PASSWORD: test, POSTGRES_DB: compat }
     ports: ["5433:5432"]   # 5433: 5432 is often taken by a local PostgreSQL
     healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 2s, retries: 20 }
+  vault:
+    image: hashicorp/vault:1.20.3   # the version the Lambda image runs (src/server/Dockerfile)
+    command: server -dev -dev-root-token-id=root -dev-listen-address=0.0.0.0:8200
+    environment: { SKIP_SETCAP: "true" }
+    ports: ["8200:8200"]
+    healthcheck: { test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"], interval: 2s, retries: 20 }

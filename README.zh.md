@@ -1,119 +1,122 @@
-# <project> —— 真正 serverless 的 <replaces>
+# lambdavault —— 真正 serverless 的 HashiCorp Vault
 
-<!-- 模板:把每个 <占位符> 换掉,章节顺序不要动(这是系列标准,见 SERIES.md) -->
+> 自己部署 **Vault** 意味着服务器全天开着（高可用要 3 台）；**HCP Vault** 每月约 $450 起。**lambdavault**
+> 把官方 Vault 程序原样跑在 **AWS Lambda** 里，数据存在 **S3**，由 **KMS** 自动解封：闲置每月约 $1。
+> vault 命令行、hvac 和 Terraform 的 vault provider 照常使用，只改 `VAULT_ADDR`。
 
-> **<replaces>** 空闲也计费。**<project>** 用 **<built on>** 做同样的事，没人用时 ≈ $0。
-> 客户端 API 一样；哪天长大了，改一行 import 就回到真服务。
+[English](README.md) · [兼容性报告](tests/compat/REPORT.md) · [任务](tests/compat/TASKS.md) · [更新记录](CHANGELOG.md)
 
-[English](README.md) · [兼容性报告](tests/compat/REPORT.md) · [任务](tests/compat/TASKS.md) · [更新日志](CHANGELOG.md)
+![architecture](docs/architecture.svg)
 
-![架构](docs/architecture.svg)
-
-| | <replaces> | <project> |
-|---|---|---|
-| 空闲费用 / 月 | <idle cost> | ≈ $0 |
-| 端点 | <host:port> | Lambda Function URL |
-| 存储 | <storage> | <built on> |
-| 客户端 | `import <client>` | `from <project> import <client>` |
-| 控制台 | <their console> | 自带 web 控制台（Lambda URL） |
-| 客户端兼容性 | — | [<n>% / <m> 项](tests/compat/REPORT.md) |
+| | 自己部署在 EC2 | HCP Vault Dedicated | lambdavault |
+|---|---|---|---|
+| 闲置费用 / 月 | 实例（高可用 3 台）、负载均衡、磁盘 | 约 $450（开发档）· 约 $1,150 起（Essentials） | 约 $1（KMS 密钥） |
+| 运行的是 | 你实例上的 Vault 社区版 | HashiCorp 托管的 Vault 企业版 | Lambda 里的 Vault 社区版 1.20.3 |
+| 存储 | 实例磁盘上的 Raft | HashiCorp 的云 | 你账号里的 S3（开版本控制），Vault 加密 |
+| 解封 | 手动或 KMS | 托管 | KMS，每次冷启动自动解封 |
+| 地址 | 你的负载均衡 | HCP | Lambda Function URL（HTTPS） |
+| 客户端 | vault CLI、hvac、Terraform provider | 一样 | 一样，不用改 |
+| 控制台 | Vault UI | Vault UI | Vault UI（`<vault_addr>/ui/`） |
+| 兼容性 | — | — | [见报告](tests/compat/REPORT.md) |
 
 ## 为什么
 
-<两三句:真服务空闲花多少钱、这个建在什么上、给谁用>
+大多数团队用 Vault 存静态密钥，每天交给 Terraform 和应用读几次。这只需要一个随时能访问的 Vault，不需要一个
+一直在运行的 Vault。Lambda 只在有请求时运行 Vault；状态和密钥由 S3 和 KMS 保存。
 
 ## 原理
 
-<一段 + 上面的架构图。点名用到的 AWS 原语和各自存什么。>
+`src/server/Dockerfile` 是官方 `hashicorp/vault` 镜像加上 AWS Lambda Web Adapter：每次调用被转成一次发给
+`127.0.0.1:8200` 上 Vault 的 HTTP 请求。Vault 的配置（`src/server/vault.hcl`）用 `s3` 存储后端和 `awskms`
+解封，所以冷启动时从 S3 读取状态、用 KMS 自动解封。函数的保留并发是 1：s3 存储后端没有锁，所以永远只有一个
+Vault 进程在写。Terraform 为 arm64 和 x86_64 都构建镜像、都推到 ECR，部署其中一个（`architecture`，默认 arm64）。
 
 ## 快速开始
 
 ### 1. 部署
 
-**Terraform**
+需要 Terraform、正在运行的 Docker，以及 AWS CLI（用于登录 ECR）。
 
 ```bash
-cp terraform/example.json terraform/my.json      # 改 aws_profile、env、user、password
+cp terraform/example.json terraform/my.json      # 改 aws_profile、region、name
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=my.json
-terraform -chdir=terraform output                 # console_url
-terraform -chdir=terraform destroy -var-file=my.json   # 全部拆掉
+terraform -chdir=terraform output                 # vault_addr、ui_url
 ```
 
-**CloudFormation**（只需要 AWS CLI；可选，从 <version> 起提供——在此之前删掉这一段）
+### 2. 初始化一次
 
 ```bash
-cp cloudformation/example-params.json cloudformation/params.json
-aws cloudformation package --template-file cloudformation/template.yaml \
-    --s3-bucket <你自己任意一个桶> --output-template-file /tmp/<project>.yaml
-aws cloudformation deploy --template-file /tmp/<project>.yaml --stack-name <project> \
-    --capabilities CAPABILITY_IAM --parameter-overrides file://cloudformation/params.json
+pip install lambdavault
+lambdavault init --profile <profile> --region <region>   # root token 和恢复密钥存进 SSM SecureString
+eval "$(lambdavault output --token --profile <profile> --region <region>)"
+vault status
 ```
 
-### 2. 打开控制台
-
-浏览器打开 `console_url`，用 `user` / `password` 登录。<控制台能看什么、做什么>。
-
-### 3. 程序连接
+### 3. 像普通 Vault 一样使用
 
 ```bash
-pip install <project>
+vault secrets enable -path=kvv2 kv-v2
+vault kv put kvv2/app user=u password=p
+vault kv get kvv2/app
 ```
 
-```python
-from <project> import <client>        # 以后换真服务:`import <client>`,其他不动
+```hcl
+provider "vault" {
+  address = "<vault_addr>"   # terraform output vault_addr
+}
 
-<五行标准客户端 API 的例子>
+data "vault_kv_secret_v2" "app" {
+  mount = "kvv2"
+  name  = "app"
+}
 ```
+
+浏览器打开 `<vault_addr>/ui/` 就是 Vault UI。
+
+任务 1 完成之前，Terraform 一次读很多密钥时请加 `-parallelism=1`：同一时刻只有一个 Vault 进程在处理请求，
+并发的请求会收到 429。
 
 ## 兼容性
 
-[tests/compat/REPORT.md](tests/compat/REPORT.md) 每次跑测试自动生成：同样的操作在 Docker 里的真 <replaces>
-和 <project> 上各跑一遍，比对结果、类型和错误。
-
-| 状态 | 含义 |
-|---|---|
-| ✅ verified | 与参照一致，可放心依赖 |
-| ❌ gap | 已知差异，备注指向 [TASKS.md](tests/compat/TASKS.md) 里修它的任务 |
-| ⚪ quirk | 真服务的怪行为，故意不模仿 |
-| ⛔ unsupported | 明确拒绝（`NotSupportedError`），绝不静默走样 |
+两边运行的是同一个 Vault 程序，所以报告验证的是：跑在 Lambda 上的 Vault 和普通 Vault 的回答完全一样。同样的
+hvac 调用分别在 Docker 里的 Vault 1.20.3 和线上部署上执行，逐步比较。
 
 ```bash
-python3 -m pytest tests -q                 # 不碰 Docker：<replaces> 在跑就实时比对，否则 <退路>
-python3 -m pytest tests -q --docker up     # 在 Docker 里启动 <replaces>，等健康后测试；测完保持运行
-python3 -m pytest tests -q --docker run    # 同上，全部通过就关掉；有失败就保持运行并提示
-python3 -m pytest tests -q --docker down   # 同上，不管结果一律关掉
+python3 -m pytest tests -q --docker run --aws my.json    # Docker 里的 Vault vs 线上的 lambdavault
+python3 -m pytest tests -q                               # 只跑回归测试
 ```
 
 ## 保证
 
-| | 靠什么 |
+| | 怎么做到 |
 |---|---|
-| **原子性** | <...> |
-| **持久性** | <...> |
-| **隔离性** | <...> |
-| **可用性** | Lambda / <built on> 是区域级、天然多 AZ 的服务：没有实例会挂、没有维护窗口 |
+| **加密** | Vault 的 barrier 在写进 S3 之前加密所有数据；它的根密钥由 KMS 加密；S3 另有 SSE |
+| **持久性** | S3（开版本控制：被覆盖的对象可以找回） |
+| **只有一个写入者** | 保留并发 1：两个 Vault 进程永远不会同时使用存储 |
+| **可用性** | Lambda、S3、KMS 都是区域级多可用区服务：没有要维护或打补丁的实例 |
 
 ## 适合谁
 
-<适合的写法、不适合的写法,以及"不适合"就是该迁 <replaces> 的时候——见 MIGRATION.md>
+用 Vault 存静态密钥（KV）、用 token、策略和 userpass 等认证方式，每秒几个请求的团队。暂时不适合：很多并发调用者
+（任务 1），以及 Raft、复制和企业版功能。迁到 Vault 集群见 MIGRATION.md。
 
 ## 目录
 
 ```
-src/server/       服务本体:lambda_function.py(HTTP API + 控制台)、index.html
-client/           pip 包 <project>:<project>/<client>.py、pyproject.toml
-terraform/        部署方式 A
-cloudformation/   部署方式 B（可选，0.1.0 之后）
-tests/            回归测试;tests/compat/ 兼容性测试、REPORT.md、TASKS.md
+src/server/       Dockerfile（Vault + Lambda Web Adapter）、vault.hcl
+client/           pip 包 lambdavault：init、status、output
+terraform/        S3、KMS、ECR、Lambda 和它的 Function URL、SSM /<name>/vault_addr
+tests/            回归测试；tests/compat/ Vault vs lambdavault、REPORT.md、TASKS.md
 ```
 
 ## 发版
 
-CI 每次 push 跑全部测试。发版就是打 tag：改 `client/pyproject.toml` 和 `client/<project>/__init__.py` 的版本号，
-写 CHANGELOG，提交，然后 `git tag vX.Y.Z && git push --tags`（测试 → 构建 → PyPI trusted publishing；tag 必须等于版本号）。
+每次 push 都跑测试。发版就是打 tag：改 `client/pyproject.toml` 和 `client/lambdavault/__init__.py` 里的版本号，
+写 CHANGELOG，提交，然后 `git tag vX.Y.Z && git push --tags`。
 
 ---
 
-**[Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless)** 系列之一——把空闲也计费的 AWS 服务，
-用空闲 ≈ $0 的原语重做一遍。MIT。
+**[Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless)** 系列的一部分：闲置也收费的
+AWS 服务，用闲置 ≈ $0 的积木重做。MIT。Vault 是 HashiCorp 的商标；lambdavault 原样运行 Vault 社区版程序，
+遵循其自身的许可证（BSL 1.1）。

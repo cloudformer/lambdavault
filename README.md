@@ -1,120 +1,127 @@
-# <project> — a truly serverless <replaces>
+# lambdavault — HashiCorp Vault, truly serverless
 
-<!-- template: replace every <placeholder>, keep the section order (it is the series standard, see SERIES.md) -->
-
-> **<replaces>** bills while idle. **<project>** does the same job on **<built on>** and costs ≈ $0 when nothing happens.
-> Same client API; when you outgrow it, go back to the real service by changing one import line.
+> A self-managed **Vault** means servers that run all day (three for HA); **HCP Vault** starts around
+> $450 a month. **lambdavault** runs the official Vault binary, unchanged, inside **AWS Lambda**, with its
+> data in **S3** and auto-unseal by **KMS**: ≈ $1 a month when idle. The vault CLI, hvac and the Terraform
+> vault provider talk to it as to any Vault — only `VAULT_ADDR` changes.
 
 [中文](README.zh.md) · [compatibility report](tests/compat/REPORT.md) · [tasks](tests/compat/TASKS.md) · [changelog](CHANGELOG.md)
 
 ![architecture](docs/architecture.svg)
 
-| | <replaces> | <project> |
-|---|---|---|
-| Idle cost / month | <idle cost> | ≈ $0 |
-| Endpoint | <host:port> | Lambda Function URL |
-| Storage | <storage> | <built on> |
-| Client | `import <client>` | `from <project> import <client>` |
-| Console | <their console> | built-in web console (Lambda URL) |
-| Client compatibility | — | [<n>% of <m> features](tests/compat/REPORT.md) |
+| | Vault on EC2 (self-managed) | HCP Vault Dedicated | lambdavault |
+|---|---|---|---|
+| Idle cost / month | the instances (3 for HA), load balancer, disks | ≈ $450 (Development) · ≈ $1,150+ (Essentials) | ≈ $1 (the KMS key) |
+| Runs | Vault Community on your instances | Vault Enterprise, by HashiCorp | Vault Community 1.20.3 in Lambda |
+| Storage | Raft on the instances' disks | HashiCorp's cloud | S3 in your account (versioned), Vault-encrypted |
+| Unseal | manual or KMS | managed | KMS, on every cold start |
+| Endpoint | your load balancer | HCP | Lambda Function URL (HTTPS) |
+| Clients | vault CLI, hvac, Terraform provider | the same | the same, unchanged |
+| Console | Vault UI | Vault UI | Vault UI (`<vault_addr>/ui/`) |
+| Compatibility | — | — | [see the report](tests/compat/REPORT.md) |
 
 ## Why
 
-<two or three sentences: what the real service costs idle, what this is built on, who it is for>
+Most teams use Vault to keep static secrets and hand them to Terraform and applications a few times a day. That
+needs a Vault that is always reachable, not one that is always running. Lambda runs Vault only while a request
+is being answered; S3 and KMS keep the state and the key.
 
 ## How it works
 
-<one paragraph + the architecture image above. Name the AWS primitives and what each one holds.>
+`src/server/Dockerfile` is the official `hashicorp/vault` image plus AWS Lambda Web Adapter, which turns each
+invocation into an HTTP request to Vault on `127.0.0.1:8200`. Vault's config (`src/server/vault.hcl`) uses the
+`s3` storage backend and the `awskms` seal, so a cold start reads its state from S3 and unseals itself with
+KMS. The function's reserved concurrency is 1: the s3 backend has no lock, so exactly one Vault process ever
+writes. Terraform builds the image for arm64 and x86_64, pushes both to ECR and deploys one
+(`architecture`, default arm64).
 
 ## Quick start
 
 ### 1. Deploy
 
-**Terraform**
+Needs Terraform, Docker running and the AWS CLI (for the ECR login).
 
 ```bash
-cp terraform/example.json terraform/my.json      # set aws_profile, env, user, password
+cp terraform/example.json terraform/my.json      # set aws_profile, region, name
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=my.json
-terraform -chdir=terraform output                 # console_url
-terraform -chdir=terraform destroy -var-file=my.json   # tear everything down
+terraform -chdir=terraform output                 # vault_addr, ui_url
 ```
 
-**CloudFormation** (AWS CLI only; optional, from <version> — delete this block until it exists)
+### 2. Initialize once
 
 ```bash
-cp cloudformation/example-params.json cloudformation/params.json
-aws cloudformation package --template-file cloudformation/template.yaml \
-    --s3-bucket <any-bucket-you-own> --output-template-file /tmp/<project>.yaml
-aws cloudformation deploy --template-file /tmp/<project>.yaml --stack-name <project> \
-    --capabilities CAPABILITY_IAM --parameter-overrides file://cloudformation/params.json
+pip install lambdavault
+lambdavault init --profile <profile> --region <region>   # root token + recovery key -> SSM SecureString
+eval "$(lambdavault output --token --profile <profile> --region <region>)"
+vault status
 ```
 
-### 2. Open the console
-
-Open `console_url` in a browser, sign in with `user` / `password`. <what the console shows and does>.
-
-### 3. Connect from code
+### 3. Use it as any Vault
 
 ```bash
-pip install <project>
+vault secrets enable -path=kvv2 kv-v2
+vault kv put kvv2/app user=u password=p
+vault kv get kvv2/app
 ```
 
-```python
-from <project> import <client>        # later: `import <client>` against the real service, nothing else changes
+```hcl
+provider "vault" {
+  address = "<vault_addr>"   # terraform output vault_addr
+}
 
-<five-line example of the standard client's API>
+data "vault_kv_secret_v2" "app" {
+  mount = "kvv2"
+  name  = "app"
+}
 ```
+
+Open `<vault_addr>/ui/` in a browser for the Vault UI.
+
+Until task 1 is done, run Terraform with `-parallelism=1` when it reads many secrets: one Vault process answers
+one request at a time and a concurrent one gets 429.
 
 ## Compatibility
 
-[tests/compat/REPORT.md](tests/compat/REPORT.md) is regenerated by every test run: the same operations run on the
-real <replaces> (Docker) and on <project>, comparing results, types and errors.
-
-| Status | Meaning |
-|---|---|
-| ✅ verified | identical to the reference; safe to rely on |
-| ❌ gap | known difference; the note names the task in [TASKS.md](tests/compat/TASKS.md) that closes it |
-| ⚪ quirk | documented behaviour of the real service we deliberately do not imitate |
-| ⛔ unsupported | refused with `NotSupportedError` — never silently different |
+Both sides run the same Vault binary, so the report checks that Vault on Lambda answers exactly like a normal
+Vault: the same hvac calls on Vault 1.20.3 in Docker and on the deployed stack, compared step by step.
 
 ```bash
-python3 -m pytest tests -q                 # leaves Docker alone: live if <replaces> is running, else <the fallback>
-python3 -m pytest tests -q --docker up     # starts <replaces> in Docker, waits until healthy, tests; keeps it running
-python3 -m pytest tests -q --docker run    # the same, then stops it if all passed (on a failure it keeps running)
-python3 -m pytest tests -q --docker down   # the same, then stops it whatever the result
+python3 -m pytest tests -q --docker run --aws my.json    # Vault in Docker vs the deployed lambdavault
+python3 -m pytest tests -q                               # regression suite only
 ```
 
 ## Guarantees
 
 | | How |
 |---|---|
-| **Atomicity** | <...> |
-| **Durability** | <...> |
-| **Isolation** | <...> |
-| **Availability** | Lambda / <built on> are regional, multi-AZ services: no instance to fail, no maintenance window |
+| **Encryption** | Vault's barrier encrypts every value before it reaches S3; its root key is wrapped by KMS; S3 adds SSE |
+| **Durability** | S3 (versioned: an overwritten object can be recovered) |
+| **One writer** | reserved concurrency 1: two Vault processes never share the storage |
+| **Availability** | Lambda, S3 and KMS are regional, multi-AZ: no instance to fail or patch |
 
 ## Who this is for
 
-<the fit: what code patterns work, what does not, and that the "does not" is the moment to move to <replaces> — see MIGRATION.md>
+Teams that use Vault for static secrets (KV), tokens, policies and auth methods such as userpass, at a few
+requests per second. Not yet: many concurrent callers (task 1), Raft / replication / Enterprise features.
+See MIGRATION.md for moving to a Vault cluster.
 
 ## Repository layout
 
 ```
-src/server/       the service: lambda_function.py (HTTP API + console), index.html
-client/           the pip package <project>: <project>/<client>.py, pyproject.toml
-terraform/        deployment, option A
-cloudformation/   deployment, option B (optional, after 0.1.0)
-tests/            regression suite; tests/compat/ compatibility suite, REPORT.md, TASKS.md
+src/server/       Dockerfile (Vault + Lambda Web Adapter), vault.hcl
+client/           the pip package lambdavault: init, status, output
+terraform/        S3, KMS, ECR, the Lambda and its Function URL, SSM /<name>/vault_addr
+tests/            regression suite; tests/compat/ Vault vs lambdavault, REPORT.md, TASKS.md
 ```
 
 ## Releasing
 
-CI runs the whole suite on every push. A release is a tag: bump the version in `client/pyproject.toml` and
-`client/<project>/__init__.py`, add the CHANGELOG entry, commit, then `git tag vX.Y.Z && git push --tags`
-(tests → build → PyPI trusted publishing; the tag must equal the version).
+CI runs the suite on every push. A release is a tag: bump the version in `client/pyproject.toml` and
+`client/lambdavault/__init__.py`, add the CHANGELOG entry, commit, then `git tag vX.Y.Z && git push --tags`.
 
 ---
 
 Part of **[Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless)** — AWS services that bill
-while idle, rebuilt on primitives that cost ≈ $0 when idle. MIT.
+while idle, rebuilt on primitives that cost ≈ $0 when idle. MIT. Vault is a trademark of HashiCorp; lambdavault
+runs the unmodified Vault Community binary under its own license (BSL 1.1).

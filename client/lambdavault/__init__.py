@@ -1,4 +1,4 @@
-"""<project> — a truly serverless <replaces>. Submodules are named after the standard client they mirror."""
-from . import client  # noqa: F401   rename to the standard client's module name (pymysql, redis, ...)
+"""lambdavault: HashiCorp Vault on AWS Lambda + S3 + KMS. The vault CLI, hvac and the Terraform vault provider
+are the clients; this package is the helper around a deployment (`lambdavault init | status | output`)."""
 
 __version__ = "0.1.0"

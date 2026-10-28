@@ -4,11 +4,8 @@
   "assume_role_arn": "",
 
   "env": "dev",
-  "name": "<project>",
+  "name": "lambdavault",
 
-  "user": "admin",
-  "password": "CHANGE-ME",
-
-  "endpoint_auth": "NONE",
-  "console": true
+  "memory_size": 1024,
+  "force_destroy": false
 }

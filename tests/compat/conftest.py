@@ -1,109 +1,98 @@
-"""Compatibility harness: the same operations on the real <replaces> (Docker) and on the project, compared.
+"""Compatibility harness: the same hvac calls on a real Vault (Docker, the version the image runs) and on the
+deployed lambdavault (--aws <var-file>), compared step by step.
 
-The project side is the Lambda handler called in-process, or the deployed stack with --aws <var-file>
-(tests/compat_aws.py).
-
-Template. Keep the shape: a `real_<ref>` fixture that skips without the DSN env var (or runs the project
-side only with COMPAT_DRY=1), an `ours` fixture that calls the server in-process (or the deployed stack with --aws), and a `pair` fixture
-whose `run(steps)` executes each step on both sides and asserts the outcomes are equal. A test is one
-feature; its docstring "Category | Feature | note" is the report row.
+lambdavault runs the official Vault binary, so there is no in-process side: without --aws the comparisons are
+skipped. A test is one feature; its docstring "Category | Feature | note" is the report row. Each step is a
+callable(client) -> value; results are normalised (timestamps, request ids, accessors dropped) and errors
+compare as their hvac exception class.
 """
-import base64
 import json
 import os
-from dataclasses import dataclass
+import subprocess
 
 import pytest
 
-import lambda_function as lf
-import compat_aws      # --aws: the deployed stack instead of the in-process handler
+import compat_aws
 import compat_report
-import importlib
-ours_client = importlib.import_module(os.environ["PACKAGE"] + ".client")   # <package>.<client>; rename `client` with the submodule
 
-AUTH = "Basic " + base64.b64encode(b"admin:pw").decode()
+hvac = pytest.importorskip("hvac")
 
-
-@dataclass
-class Outcome:
-    value: object          # the operation's result, normalised to plain Python
-    error: object = None   # (class name, code) when it raised
+MOUNT = "compat"          # a KV v2 mount of the suite's own, recreated empty once per run on both sides
+VOLATILE = {"created_time", "deletion_time", "updated_time", "request_id", "lease_id", "lease_duration",
+            "renewable", "accessor", "client_token", "entity_id", "creation_time", "expire_time",
+            "issue_time", "last_renewal_time", "creation_ttl", "ttl", "id", "mount_accessor", "uuid",
+            "wrap_info", "warnings", "warning", "token_accessor", "mount_type", "metadata"}
 
 
-def run_step(conn, op):
-    """op = (method name, args). Normalise the result so both sides compare equal when they agree."""
-    name, args = op[0], op[1:]
+def normalise(value):
+    if isinstance(value, dict):
+        return {k: normalise(v) for k, v in sorted(value.items()) if k not in VOLATILE}
+    if isinstance(value, list):
+        return [normalise(v) for v in value]
+    return value
+
+
+def outcome(client, step):
     try:
-        return Outcome(getattr(conn, name)(*args))
-    except Exception as e:  # noqa: BLE001 - we compare whatever each side raises
-        code = e.args[0] if e.args and isinstance(e.args[0], int) else None
-        return Outcome(None, (type(e).__name__, code))
+        return ("ok", normalise(step(client)))
+    except hvac.exceptions.VaultError as e:
+        return ("error", type(e).__name__)
 
 
-@pytest.fixture
-def real():
-    dsn = os.environ.get("REFERENCE_DSN")          # e.g. REDIS_URL=redis://127.0.0.1:6379/0
-    if not dsn and os.environ.get("COMPAT_DRY"):
-        return None                                # dry run: project side only, print what it does
-    if not dsn:   # compat_report sets it when the container runs: python3 -m pytest tests -q --docker up | run | down
-        pytest.skip("the reference service is not running: python3 -m pytest tests -q --docker up | run | down")
-    client = pytest.importorskip("<client>")       # the real client library
-    conn = client.connect(dsn)                     # <- adapt
-    compat_report.versions["reference"] = "<replaces> <version> (Docker)"   # <- query it once
-    return conn
+def fresh(client):
+    """The suite's KV v2 mount and userpass auth, empty: the reference container starts empty, so must we."""
+    if f"{MOUNT}/" in client.sys.list_mounted_secrets_engines()["data"]:
+        client.sys.disable_secrets_engine(MOUNT)
+    client.sys.enable_secrets_engine("kv", path=MOUNT, options={"version": "2"})
+    if "userpass/" in client.sys.list_auth_methods()["data"]:
+        client.sys.disable_auth_method("userpass")
+    client.sys.enable_auth_method("userpass")
 
 
 @pytest.fixture(scope="session")
-def deployed(request):
-    """--aws: the deployed stack (terraform output + the variable file it was deployed with). Give the tests
-    one database / key prefix of their own there and empty it here once per run, as the Docker reference
-    starts empty. None without --aws."""
-    return compat_aws.endpoint(request.config, url="console_url", user="user", password="password")   # <- adapt
+def real():
+    addr, token = os.environ.get("VAULT_ADDR"), os.environ.get("VAULT_TOKEN")
+    if not addr:
+        pytest.skip("the reference Vault is not running: python3 -m pytest tests -q --docker up | run | down")
+    client = hvac.Client(url=addr, token=token)
+    compat_report.versions["vault"] = f"Vault {client.sys.read_health_status(method='GET')['version']} (Docker)"
+    fresh(client)
+    return client
 
 
-@pytest.fixture
-def ours(deployed, monkeypatch):
-    """The project's client: against the deployed Lambda URL with --aws, otherwise with its HTTP layer
-    calling the Lambda handler in-process (a Python function, no Lambda, no HTTP)."""
-    if deployed:
-        return ours_client.connect(host=deployed["url"], user=deployed["user"], password=deployed["password"])
-    c = ours_client.connect(host="in-process.test", user="admin", password="pw")
+@pytest.fixture(scope="session")
+def ours(request):
+    if not request.config.getoption("--aws", None):
+        pytest.skip("lambdavault runs the real Vault binary: compare the deployed stack with --aws <var-file>")
+    addr = compat_aws.aws["outputs"].get("vault_addr")
+    if not addr:
+        pytest.exit("--aws: no vault_addr in terraform output; deploy first", returncode=4)
+    compat_aws.aws["url"] = addr
+    token = os.environ.get("LAMBDAVAULT_TOKEN") or root_token(compat_aws.aws["vars"])
+    client = hvac.Client(url=addr, token=token, timeout=60)
+    fresh(client)
+    return client
 
-    def call(method, path, payload=None):
-        event = {"requestContext": {"http": {"method": method}}, "rawPath": path,
-                 "headers": {"authorization": AUTH}, "body": json.dumps(payload) if payload is not None else None}
-        resp = lf.lambda_handler(event, None)
-        data = json.loads(resp["body"])
-        if resp["statusCode"] >= 400:
-            raise ours_client.Error(resp["statusCode"], data.get("error", ""))
-        return data
 
-    monkeypatch.setattr(c, "_call", call)
-    return c
+def root_token(tf_vars):
+    """The root token `lambdavault init` stored in SSM, read with the deployment's own profile / region."""
+    cmd = ["aws", "ssm", "get-parameter", "--with-decryption", "--name", f"/{tf_vars.get('name', 'lambdavault')}/root_token",
+           "--query", "Parameter.Value", "--output", "text", "--region", tf_vars.get("region", "us-east-2")]
+    if tf_vars.get("aws_profile"):
+        cmd += ["--profile", tf_vars["aws_profile"]]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode:
+        pytest.exit(f"--aws: no root token (set LAMBDAVAULT_TOKEN or run lambdavault init): {r.stderr.strip()[:200]}",
+                    returncode=4)
+    return r.stdout.strip()
 
 
 @pytest.fixture
 def pair(real, ours):
-    dry = real is None
-
-    def both(op):
-        o = run_step(ours, op)
-        if dry:
-            print(f"  {'ERR ' + str(o.error) if o.error else 'ok  '} {op}")
-            return o, o
-        return run_step(real, op), o
-
+    """pair([step, ...]): each step(client) on both sides; the outcomes must be equal."""
     def run(steps):
-        for op in steps:
-            r, o = both(op)
-            if not dry:
-                assert r == o, f"{op}\n  real: {r}\n  ours: {o}"
-    run.both = both
-
-    def unsupported(op):
-        """The real service does it; the project must refuse it with NotSupportedError."""
-        r, o = both(op)
-        assert dry or r.error is None, f"the reference rejected it itself: {r.error}"
-        assert o.error and o.error[0] == "NotSupportedError", f"{op}\n  not refused: {o}"
-    run.unsupported = unsupported
+        for i, step in enumerate(steps):
+            r, o = outcome(real, step), outcome(ours, step)
+            assert r == o, (f"step {i}\n  real: {json.dumps(r, default=str)[:400]}\n"
+                            f"  ours: {json.dumps(o, default=str)[:400]}")
     return run

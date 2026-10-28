@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "aws_profile" {
-  description = "Local AWS CLI profile to use; \"\" = default credential chain"
+  description = "Local AWS CLI profile to use (also for the ECR login of the image push); \"\" = default credential chain"
   type        = string
   default     = ""
 }
@@ -23,46 +23,36 @@ variable "assume_role_arn" {
 
 # ---- app ----
 variable "env" {
-  description = "Environment label (tags, resource names)"
+  description = "Environment label (tags)"
   type        = string
   default     = "dev"
 }
 
 variable "name" {
-  description = "Project name; resources are <name>-lambda, <name>-lambda-role"
+  description = "Deployment name: resources are <name>-lambda, <name>-<account id> (bucket), alias/<name>-seal, SSM /<name>/..."
   type        = string
-  default     = "<project>"
+  default     = "lambdavault"
 }
 
-# ---- the service's credentials (HTTP Basic on the Function URL) ----
-variable "user" {
-  type = string
-}
-
-variable "password" {
-  type      = string
-  sensitive = true
-}
-
-# ---- the endpoint's gate ----
-variable "endpoint_auth" {
-  description = <<-EOT
-    How the Function URL is protected:
-      NONE    = public URL; only user/password (HTTP Basic) is checked      <- default
-      AWS_IAM = AWS checks a SigV4 signature + IAM permission first. The browser console
-                cannot sign requests, so it is unusable in this mode.
-  EOT
+variable "architecture" {
+  description = "The architecture this deployment runs: arm64 (Graviton, ~20% cheaper) or x86_64; both images are always built"
   type        = string
-  default     = "NONE"
+  default     = "arm64"
 
   validation {
-    condition     = contains(["NONE", "AWS_IAM"], var.endpoint_auth)
-    error_message = "endpoint_auth must be NONE or AWS_IAM."
+    condition     = contains(["arm64", "x86_64"], var.architecture)
+    error_message = "architecture must be arm64 or x86_64."
   }
 }
 
-variable "console" {
-  description = "Serve the built-in web console at GET /. false = API only."
+variable "memory_size" {
+  description = "Lambda memory in MB (CPU scales with it; Vault starts faster with more)"
+  type        = number
+  default     = 1024
+}
+
+variable "force_destroy" {
+  description = "Let `destroy` delete the bucket with all of Vault's data in it. Keep false for real secrets."
   type        = bool
-  default     = true
+  default     = false
 }

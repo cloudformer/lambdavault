@@ -15,18 +15,15 @@ import platform
 import re
 
 CONFIG = {
-    "title": "<project> compatibility report",
+    "title": "lambdavault compatibility report",
     "report": os.path.join(os.path.dirname(__file__), "compat", "REPORT.md"),
     # (key, section title, substring of the test file name, reference description or callable)
     "suites": [
-        ("reference", "<project>.<client> vs <replaces>", "test_reference",
-         lambda: versions.get("reference") or "<replaces> (not run)"),
+        ("vault", "lambdavault (Vault on Lambda + S3 + KMS) vs Vault", "test_vault",
+         lambda: versions.get("vault") or "Vault (not run)"),
     ],
     "version": lambda: os.environ["PACKAGE"] + " " + __import__(os.environ["PACKAGE"]).__version__,
-    "categories": ["Basics", "Data", "Queries", "Errors", "Metadata", "Unsupported", "General"],
-    # Optional "Test scope" table at the top of REPORT.md: which test covers which business step.
-    # (business step, how it is tested, ["file.py::test_name", ...], still to do or None); status is computed.
-    # "scope": [("1. <step>", "<how>", ["test_server.py::test_routes_errors_and_timing"], None)],
+    "categories": ["KV v2", "Tokens", "Policies", "Auth", "System", "Errors", "General"],
 }
 
 features = {}   # nodeid -> {"suite", "feature", "gap", "unsupported", "quirk", "fail"}
