@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lambdavault"
 version = "0.1.0"
-description = "HashiCorp Vault on AWS Lambda + S3 + KMS, ≈ $0 when idle. The vault CLI, hvac and the Terraform vault provider talk to it unchanged; this package is the helper: init, status, output."
+description = "HashiCorp Vault on AWS Lambda + S3 + KMS, ≈ $0 when idle. The vault CLI, hvac and the Terraform vault provider talk to it unchanged; this package is the helper: status, output."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -18,7 +18,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Security",
 ]
-dependencies = ["boto3"]  # SSM: where the deployment's address, root token and recovery key live
+dependencies = []  # standard library only
 
 [project.scripts]
 lambdavault = "lambdavault.cli:main"

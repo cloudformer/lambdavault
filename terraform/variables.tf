@@ -29,7 +29,7 @@ variable "env" {
 }
 
 variable "name" {
-  description = "Deployment name: resources are <name>-lambda, <name>-<account id> (bucket), alias/<name>-seal, SSM /<name>/..."
+  description = "Deployment name: resources are <name>-lambda, <name>-<account id> (bucket), <name> (ECR)"
   type        = string
   default     = "lambdavault"
 }

@@ -10,9 +10,9 @@ the Lambda. This package is the helper around a deployment:
 
 ```bash
 pip install lambdavault
-lambdavault init      # once: root token + recovery key -> SSM SecureString
-lambdavault status    # initialized / sealed / version / latency
-eval "$(lambdavault output --token)"   # export VAULT_ADDR / VAULT_TOKEN for the vault CLI
+lambdavault status    # initialized / sealed / version / latency (address from terraform output)
+eval "$(lambdavault output)"   # export VAULT_ADDR for the vault CLI
+vault operator init -recovery-shares=1 -recovery-threshold=1   # once
 vault kv get kvv2/app
 ```
 

@@ -6,7 +6,7 @@ FROM hashicorp/vault:1.20.3
 COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
 COPY vault.hcl /etc/lambdavault/vault.hcl
 
-# ready = initialized and unsealed (auto-unseal with KMS), or not initialized yet so `lambdavault init` can run
+# ready = initialized and unsealed (KMS auto-unseal), or not initialized yet so `vault operator init` can run
 ENV AWS_LWA_PORT=8200 \
     AWS_LWA_READINESS_CHECK_PATH="/v1/sys/health?uninitcode=204&sealedcode=503" \
     VAULT_LOG_LEVEL=info

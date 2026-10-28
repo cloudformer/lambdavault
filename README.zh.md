@@ -1,7 +1,7 @@
 # lambdavault —— 真正 serverless 的 HashiCorp Vault
 
 > 自己部署 **Vault** 意味着服务器全天开着（高可用要 3 台）；**HCP Vault** 每月约 $450 起。**lambdavault**
-> 把官方 Vault 程序原样跑在 **AWS Lambda** 里，数据存在 **S3**，由 **KMS** 自动解封：闲置每月约 $1。
+> 把官方 Vault 程序原样跑在 **AWS Lambda** 里，数据存在 **S3**，由 **KMS** 自动解封：闲置每月约 $1（KMS 密钥，按小时计费）。
 > vault 命令行、hvac 和 Terraform 的 vault provider 照常使用，只改 `VAULT_ADDR`。
 
 [English](README.md) · [兼容性报告](tests/compat/REPORT.md) · [任务](tests/compat/TASKS.md) · [更新记录](CHANGELOG.md)
@@ -10,10 +10,10 @@
 
 | | 自己部署在 EC2 | HCP Vault Dedicated | lambdavault |
 |---|---|---|---|
-| 闲置费用 / 月 | 实例（高可用 3 台）、负载均衡、磁盘 | 约 $450（开发档）· 约 $1,150 起（Essentials） | 约 $1（KMS 密钥） |
+| 闲置费用 / 月 | 实例（高可用 3 台）、负载均衡、磁盘 | 约 $450（开发档）· 约 $1,150 起（Essentials） | 约 $1（KMS 密钥，按小时计费） |
 | 运行的是 | 你实例上的 Vault 社区版 | HashiCorp 托管的 Vault 企业版 | Lambda 里的 Vault 社区版 1.20.3 |
 | 存储 | 实例磁盘上的 Raft | HashiCorp 的云 | 你账号里的 S3（开版本控制），Vault 加密 |
-| 解封 | 手动或 KMS | 托管 | KMS，每次冷启动自动解封 |
+| 解封 | 手动或 KMS | 托管 | KMS，每次冷启动由 Vault 自己解封 |
 | 地址 | 你的负载均衡 | HCP | Lambda Function URL（HTTPS） |
 | 客户端 | vault CLI、hvac、Terraform provider | 一样 | 一样，不用改 |
 | 控制台 | Vault UI | Vault UI | Vault UI（`<vault_addr>/ui/`） |
@@ -27,8 +27,8 @@
 ## 原理
 
 `src/server/Dockerfile` 是官方 `hashicorp/vault` 镜像加上 AWS Lambda Web Adapter：每次调用被转成一次发给
-`127.0.0.1:8200` 上 Vault 的 HTTP 请求。Vault 的配置（`src/server/vault.hcl`）用 `s3` 存储后端和 `awskms`
-解封，所以冷启动时从 S3 读取状态、用 KMS 自动解封。函数的保留并发是 1：s3 存储后端没有锁，所以永远只有一个
+`127.0.0.1:8200` 上 Vault 的 HTTP 请求。Vault 的配置（`src/server/vault.hcl`）用 `s3` 存储后端，冷启动时从 S3
+读取状态，用 KMS 自动解封。函数的保留并发是 1：s3 存储后端没有锁，所以永远只有一个
 Vault 进程在写。Terraform 为 arm64 和 x86_64 都构建镜像、都推到 ECR，部署其中一个（`architecture`，默认 arm64）。
 
 ## 快速开始
@@ -47,9 +47,9 @@ terraform -chdir=terraform output                 # vault_addr、ui_url
 ### 2. 初始化一次
 
 ```bash
-pip install lambdavault
-lambdavault init --profile <profile> --region <region>   # root token 和恢复密钥存进 SSM SecureString
-eval "$(lambdavault output --token --profile <profile> --region <region>)"
+export VAULT_ADDR=$(terraform -chdir=terraform output -raw vault_addr)
+vault operator init -recovery-shares=1 -recovery-threshold=1   # 只打印一次 root token 和恢复密钥：两个都要保存好
+export VAULT_TOKEN=<root token>
 vault status
 ```
 
@@ -83,7 +83,7 @@ data "vault_kv_secret_v2" "app" {
 hvac 调用分别在 Docker 里的 Vault 1.20.3 和线上部署上执行，逐步比较。
 
 ```bash
-python3 -m pytest tests -q --docker run --aws my.json    # Docker 里的 Vault vs 线上的 lambdavault
+LAMBDAVAULT_TOKEN=<token> python3 -m pytest tests -q --docker run --aws my.json   # Docker 里的 Vault vs 线上的 lambdavault
 python3 -m pytest tests -q                               # 只跑回归测试
 ```
 
@@ -91,7 +91,7 @@ python3 -m pytest tests -q                               # 只跑回归测试
 
 | | 怎么做到 |
 |---|---|
-| **加密** | Vault 的 barrier 在写进 S3 之前加密所有数据；它的根密钥由 KMS 加密；S3 另有 SSE |
+| **加密** | Vault 的 barrier 在写进 S3 之前加密所有数据（S3 另有 SSE-S3）；Vault 的根密钥由 KMS 加密 |
 | **持久性** | S3（开版本控制：被覆盖的对象可以找回） |
 | **只有一个写入者** | 保留并发 1：两个 Vault 进程永远不会同时使用存储 |
 | **可用性** | Lambda、S3、KMS 都是区域级多可用区服务：没有要维护或打补丁的实例 |
@@ -105,8 +105,8 @@ python3 -m pytest tests -q                               # 只跑回归测试
 
 ```
 src/server/       Dockerfile（Vault + Lambda Web Adapter）、vault.hcl
-client/           pip 包 lambdavault：init、status、output
-terraform/        S3、KMS、ECR、Lambda 和它的 Function URL、SSM /<name>/vault_addr
+client/           pip 包 lambdavault：status、output（可选的辅助工具）
+terraform/        S3（开版本控制）、KMS 密钥（解封用）、ECR、Lambda、Function URL
 tests/            回归测试；tests/compat/ Vault vs lambdavault、REPORT.md、TASKS.md
 ```
 

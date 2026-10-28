@@ -8,7 +8,6 @@ compare as their hvac exception class.
 """
 import json
 import os
-import subprocess
 
 import pytest
 
@@ -68,23 +67,13 @@ def ours(request):
     if not addr:
         pytest.exit("--aws: no vault_addr in terraform output; deploy first", returncode=4)
     compat_aws.aws["url"] = addr
-    token = os.environ.get("LAMBDAVAULT_TOKEN") or root_token(compat_aws.aws["vars"])
+    token = os.environ.get("LAMBDAVAULT_TOKEN")
+    if not token:
+        pytest.exit("--aws: set LAMBDAVAULT_TOKEN to the deployed Vault's token (vault operator init printed it)",
+                    returncode=4)
     client = hvac.Client(url=addr, token=token, timeout=60)
     fresh(client)
     return client
-
-
-def root_token(tf_vars):
-    """The root token `lambdavault init` stored in SSM, read with the deployment's own profile / region."""
-    cmd = ["aws", "ssm", "get-parameter", "--with-decryption", "--name", f"/{tf_vars.get('name', 'lambdavault')}/root_token",
-           "--query", "Parameter.Value", "--output", "text", "--region", tf_vars.get("region", "us-east-2")]
-    if tf_vars.get("aws_profile"):
-        cmd += ["--profile", tf_vars["aws_profile"]]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode:
-        pytest.exit(f"--aws: no root token (set LAMBDAVAULT_TOKEN or run lambdavault init): {r.stderr.strip()[:200]}",
-                    returncode=4)
-    return r.stdout.strip()
 
 
 @pytest.fixture

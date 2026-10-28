@@ -12,7 +12,8 @@ locals {
 
 data "aws_caller_identity" "me" {}
 
-# ---------------- storage: Vault's s3 backend (Vault encrypts everything before it is written) ----------------
+# ---------------- storage: Vault's s3 backend (Vault encrypts everything before it is written; new buckets
+# are private and SSE-S3 encrypted by AWS default, so neither is restated here) ----------------
 resource "aws_s3_bucket" "data" {
   bucket        = "${var.name}-${data.aws_caller_identity.me.account_id}" # global name; the account id keeps it unique
   force_destroy = var.force_destroy
@@ -25,33 +26,11 @@ resource "aws_s3_bucket_versioning" "data" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
-  bucket = aws_s3_bucket.data.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "data" {
-  bucket                  = aws_s3_bucket.data.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# ---------------- the seal: Vault's root key is wrapped by this KMS key (auto-unseal, $1 / month) ----------------
+# ---------------- the seal: Vault's root key is wrapped by this KMS key (auto-unseal, $1 / month, hourly) ----------------
 resource "aws_kms_key" "seal" {
   description             = "${var.name}: Vault auto-unseal"
   deletion_window_in_days = 7
   enable_key_rotation     = true
-}
-
-resource "aws_kms_alias" "seal" {
-  name          = "alias/${var.name}-seal"
-  target_key_id = aws_kms_key.seal.key_id
 }
 
 # ---------------- the image: official Vault + Lambda Web Adapter (src/server/Dockerfile) ----------------
@@ -73,12 +52,19 @@ resource "aws_ecr_lifecycle_policy" "server" {
 }
 
 # builds and pushes both architectures on this machine (Docker running, AWS CLI for the ECR login), only when
-# src/server changes: switching var.architecture later needs no rebuild
+# src/server changes: switching var.architecture later needs no rebuild. The login goes to a throw-away
+# DOCKER_CONFIG, so whatever credential store ~/.docker/config.json names (ecr-login, osxkeychain, desktop)
+# is neither used nor changed; the current context's daemon and the installed CLI plugins still are.
 resource "terraform_data" "image" {
   triggers_replace = [local.image_tag]
   provisioner "local-exec" {
     command = <<-EOT
       set -e
+      export DOCKER_HOST="$(docker context inspect --format '{{.Endpoints.docker.Host}}')"
+      export DOCKER_CONFIG="$(mktemp -d)"
+      trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+      echo '{}' > "$DOCKER_CONFIG/config.json"
+      [ -d "$HOME/.docker/cli-plugins" ] && ln -s "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"
       aws ecr get-login-password --region ${var.region} ${local.profile} | docker login --username AWS --password-stdin ${local.registry}
       docker buildx build --platform linux/arm64 --provenance=false -t ${local.image_repo}:${local.image_tag}-arm64 --push ${local.server}
       docker buildx build --platform linux/amd64 --provenance=false -t ${local.image_repo}:${local.image_tag}-x86_64 --push ${local.server}
@@ -174,11 +160,4 @@ resource "aws_lambda_permission" "url_invoke" {
   function_name            = aws_lambda_function.server.function_name
   principal                = "*"
   invoked_via_function_url = true
-}
-
-# ---------------- where `lambdavault output / init` find this deployment (no repo needed on the laptop) ----------------
-resource "aws_ssm_parameter" "vault_addr" {
-  name  = "/${var.name}/vault_addr"
-  type  = "String"
-  value = local.vault_addr
 }

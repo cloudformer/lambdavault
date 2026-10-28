@@ -2,7 +2,7 @@
 
 > A self-managed **Vault** means servers that run all day (three for HA); **HCP Vault** starts around
 > $450 a month. **lambdavault** runs the official Vault binary, unchanged, inside **AWS Lambda**, with its
-> data in **S3** and auto-unseal by **KMS**: ≈ $1 a month when idle. The vault CLI, hvac and the Terraform
+> data in **S3** and auto-unseal by **KMS**: ≈ $1 a month when idle (the KMS key, billed by the hour). The vault CLI, hvac and the Terraform
 > vault provider talk to it as to any Vault — only `VAULT_ADDR` changes.
 
 [中文](README.zh.md) · [compatibility report](tests/compat/REPORT.md) · [tasks](tests/compat/TASKS.md) · [changelog](CHANGELOG.md)
@@ -14,7 +14,7 @@
 | Idle cost / month | the instances (3 for HA), load balancer, disks | ≈ $450 (Development) · ≈ $1,150+ (Essentials) | ≈ $1 (the KMS key) |
 | Runs | Vault Community on your instances | Vault Enterprise, by HashiCorp | Vault Community 1.20.3 in Lambda |
 | Storage | Raft on the instances' disks | HashiCorp's cloud | S3 in your account (versioned), Vault-encrypted |
-| Unseal | manual or KMS | managed | KMS, on every cold start |
+| Unseal | manual or KMS | managed | KMS, by Vault itself at every cold start |
 | Endpoint | your load balancer | HCP | Lambda Function URL (HTTPS) |
 | Clients | vault CLI, hvac, Terraform provider | the same | the same, unchanged |
 | Console | Vault UI | Vault UI | Vault UI (`<vault_addr>/ui/`) |
@@ -51,9 +51,9 @@ terraform -chdir=terraform output                 # vault_addr, ui_url
 ### 2. Initialize once
 
 ```bash
-pip install lambdavault
-lambdavault init --profile <profile> --region <region>   # root token + recovery key -> SSM SecureString
-eval "$(lambdavault output --token --profile <profile> --region <region>)"
+export VAULT_ADDR=$(terraform -chdir=terraform output -raw vault_addr)
+vault operator init -recovery-shares=1 -recovery-threshold=1   # prints the root token and recovery key once: keep both
+export VAULT_TOKEN=<root token>
 vault status
 ```
 
@@ -87,7 +87,7 @@ Both sides run the same Vault binary, so the report checks that Vault on Lambda 
 Vault: the same hvac calls on Vault 1.20.3 in Docker and on the deployed stack, compared step by step.
 
 ```bash
-python3 -m pytest tests -q --docker run --aws my.json    # Vault in Docker vs the deployed lambdavault
+LAMBDAVAULT_TOKEN=<token> python3 -m pytest tests -q --docker run --aws my.json   # Vault in Docker vs the deployed lambdavault
 python3 -m pytest tests -q                               # regression suite only
 ```
 
@@ -95,7 +95,7 @@ python3 -m pytest tests -q                               # regression suite only
 
 | | How |
 |---|---|
-| **Encryption** | Vault's barrier encrypts every value before it reaches S3; its root key is wrapped by KMS; S3 adds SSE |
+| **Encryption** | Vault's barrier encrypts every value before it reaches S3 (S3 adds SSE-S3); Vault's root key is wrapped by KMS |
 | **Durability** | S3 (versioned: an overwritten object can be recovered) |
 | **One writer** | reserved concurrency 1: two Vault processes never share the storage |
 | **Availability** | Lambda, S3 and KMS are regional, multi-AZ: no instance to fail or patch |
@@ -110,8 +110,8 @@ See MIGRATION.md for moving to a Vault cluster.
 
 ```
 src/server/       Dockerfile (Vault + Lambda Web Adapter), vault.hcl
-client/           the pip package lambdavault: init, status, output
-terraform/        S3, KMS, ECR, the Lambda and its Function URL, SSM /<name>/vault_addr
+client/           the pip package lambdavault: status, output (optional helper)
+terraform/        S3 (versioned), a KMS key (the seal), ECR, the Lambda, its Function URL
 tests/            regression suite; tests/compat/ Vault vs lambdavault, REPORT.md, TASKS.md
 ```
 
