@@ -2,8 +2,9 @@
 
 > A self-managed **Vault** means servers that run all day (three for HA); **HCP Vault** starts around
 > $450 a month. **lambdavault** runs the official Vault binary, unchanged, inside **AWS Lambda**, with its
-> data in **S3** and auto-unseal by **KMS**: ≈ $1 a month when idle (the KMS key, billed by the hour). The vault CLI, hvac and the Terraform
-> vault provider talk to it as to any Vault — only `VAULT_ADDR` changes.
+> data in **S3** and auto-unseal by **KMS**: ≈ $1 a month when idle (the KMS key, billed by the hour). The vault CLI, the Terraform vault
+> provider, the UI and hvac talk to it as to any Vault — only `VAULT_ADDR` changes (hvac: except
+> `list`, [task 5](tests/compat/TASKS.md)).
 
 [中文](README.zh.md) · [compatibility report](tests/compat/REPORT.md) · [tasks](tests/compat/TASKS.md) · [changelog](CHANGELOG.md)
 
@@ -16,7 +17,7 @@
 | Storage | Raft on the instances' disks | HashiCorp's cloud | S3 in your account (versioned), Vault-encrypted |
 | Unseal | manual or KMS | managed | KMS, by Vault itself at every cold start |
 | Endpoint | your load balancer | HCP | Lambda Function URL (HTTPS) |
-| Clients | vault CLI, hvac, Terraform provider | the same | the same, unchanged |
+| Clients | vault CLI, hvac, Terraform provider | the same | the same, unchanged (hvac `list`: task 5) |
 | Console | Vault UI | Vault UI | Vault UI (`<vault_addr>/ui/`) |
 | Compatibility | — | — | [see the report](tests/compat/REPORT.md) |
 

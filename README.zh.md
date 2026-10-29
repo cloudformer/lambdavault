@@ -2,7 +2,8 @@
 
 > 自己部署 **Vault** 意味着服务器全天开着（高可用要 3 台）；**HCP Vault** 每月约 $450 起。**lambdavault**
 > 把官方 Vault 程序原样跑在 **AWS Lambda** 里，数据存在 **S3**，由 **KMS** 自动解封：闲置每月约 $1（KMS 密钥，按小时计费）。
-> vault 命令行、hvac 和 Terraform 的 vault provider 照常使用，只改 `VAULT_ADDR`。
+> vault 命令行、Terraform 的 vault provider、UI 和 hvac 照常使用，只改 `VAULT_ADDR`（hvac 的 `list` 除外，见
+> [task 5](tests/compat/TASKS.md)）。
 
 [English](README.md) · [兼容性报告](tests/compat/REPORT.md) · [任务](tests/compat/TASKS.md) · [更新记录](CHANGELOG.md)
 
@@ -15,7 +16,7 @@
 | 存储 | 实例磁盘上的 Raft | HashiCorp 的云 | 你账号里的 S3（开版本控制），Vault 加密 |
 | 解封 | 手动或 KMS | 托管 | KMS，每次冷启动由 Vault 自己解封 |
 | 地址 | 你的负载均衡 | HCP | Lambda Function URL（HTTPS） |
-| 客户端 | vault CLI、hvac、Terraform provider | 一样 | 一样，不用改 |
+| 客户端 | vault CLI、hvac、Terraform provider | 一样 | 一样，不用改（hvac 的 `list`：task 5） |
 | 控制台 | Vault UI | Vault UI | Vault UI（`<vault_addr>/ui/`） |
 | 兼容性 | — | — | [见报告](tests/compat/REPORT.md) |
 

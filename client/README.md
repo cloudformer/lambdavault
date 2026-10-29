@@ -5,8 +5,9 @@
 
 ![lambdavault architecture](https://raw.githubusercontent.com/cloudformer/lambdavault/main/docs/architecture.svg)
 
-The vault CLI, hvac and the Terraform vault provider are the clients — unchanged, only `VAULT_ADDR` points at
-the Lambda. This package is the helper around a deployment:
+The vault CLI, the Terraform vault provider, the UI and hvac are the clients — unchanged, only `VAULT_ADDR`
+points at the Lambda (hvac: except `list`, which sends the HTTP method LIST that Lambda Function URLs refuse;
+[task 5](https://github.com/cloudformer/lambdavault/blob/main/tests/compat/TASKS.md)). This package is the helper around a deployment:
 
 ```bash
 pip install lambdavault
