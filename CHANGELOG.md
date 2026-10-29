@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-10-28
 
 First release: HashiCorp Vault Community 2.2.0, unchanged, on AWS Lambda.
 
@@ -13,4 +13,6 @@ First release: HashiCorp Vault Community 2.2.0, unchanged, on AWS Lambda.
   address comes from the local Terraform output. Initialize with `vault operator init`.
 - `src/proxy/`: the public entrance; queues concurrent callers for the one Vault (up to 25 s) instead of
   Lambda's 429.
+- Known gap (task 5): the Function URL refuses the HTTP method `LIST` (hvac, `curl -X LIST`); the vault
+  CLI, the Terraform provider and the UI send `GET ?list=true` and work.
 - Compatibility suite: the same hvac calls on Vault 2.2.0 in Docker and on the deployed stack (`--aws`).

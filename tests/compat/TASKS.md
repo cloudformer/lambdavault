@@ -10,6 +10,7 @@ resolving. Numbers are never reused.
 | 2 | `lambdavault migrate --from <vault addr>`: copy every KV v2 secret (all versions) from an existing Vault |
 | 3 | Source-IP allowlist for the Function URL |
 | 4 | Several isolated vaults: one deployment per `name` (own bucket, KMS key, URL); document and test |
+| 5 | HTTP method `LIST` is refused by the Lambda Function URL (403 before the proxy); hvac and `curl -X LIST` send it, `GET ?list=true` works (vault CLI, Terraform provider, UI). Decide: quirk (test with `GET ?list=true`, document) or a front that accepts `LIST` |
 
 Permanent, not tasks: ⛔ unsupported — Raft, replication, performance standbys and every Vault Enterprise
 feature (the binary is Vault Community).
