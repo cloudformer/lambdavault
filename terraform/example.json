@@ -4,8 +4,9 @@
   "assume_role_arn": "",
 
   "env": "dev",
-  "name": "lambdavault",
+  "project_name": "lambdavault",
 
+  "architecture": "arm64",
   "memory_size": 1024,
   "force_destroy": false
 }

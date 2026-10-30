@@ -40,7 +40,7 @@ Vault 进程在写。公开的 URL 属于一个小的代理 Lambda（`src/proxy`
 需要 Terraform、正在运行的 Docker，以及 AWS CLI（用于登录 ECR）。
 
 ```bash
-cp terraform/example.json terraform/my.json      # 改 aws_profile、region、name
+cp terraform/example.json terraform/my.json      # 改 aws_profile、region、project_name
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=my.json
 terraform -chdir=terraform output                 # vault_addr、ui_url

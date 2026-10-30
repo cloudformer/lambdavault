@@ -44,7 +44,7 @@ Vault instead of letting Lambda refuse them with 429. Terraform builds the image
 Needs Terraform, Docker running and the AWS CLI (for the ECR login).
 
 ```bash
-cp terraform/example.json terraform/my.json      # set aws_profile, region, name
+cp terraform/example.json terraform/my.json      # set aws_profile, region, project_name
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=my.json
 terraform -chdir=terraform output                 # vault_addr, ui_url

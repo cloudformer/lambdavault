@@ -1,5 +1,5 @@
 locals {
-  role   = "${var.name}-lambda-role"
+  role   = "${var.project_name}-lambda-role"
   server = "${path.module}/../src/server"
   # the image tag is the content hash of src/server: a change there builds and pushes both images
   image_tag  = substr(sha256(join("", [for f in sort(fileset(local.server, "**")) : filesha256("${local.server}/${f}")])), 0, 16)
@@ -15,7 +15,7 @@ data "aws_caller_identity" "me" {}
 # ---------------- storage: Vault's s3 backend (Vault encrypts everything before it is written; new buckets
 # are private and SSE-S3 encrypted by AWS default, so neither is restated here) ----------------
 resource "aws_s3_bucket" "data" {
-  bucket        = "${var.name}-${data.aws_caller_identity.me.account_id}" # global name; the account id keeps it unique
+  bucket        = "${var.project_name}-${data.aws_caller_identity.me.account_id}" # global name; the account id keeps it unique
   force_destroy = var.force_destroy
 }
 
@@ -28,14 +28,14 @@ resource "aws_s3_bucket_versioning" "data" {
 
 # ---------------- the seal: Vault's root key is wrapped by this KMS key (auto-unseal, $1 / month, hourly) ----------------
 resource "aws_kms_key" "seal" {
-  description             = "${var.name}: Vault auto-unseal"
+  description             = "${var.project_name}: Vault auto-unseal"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 }
 
 # ---------------- the image: official Vault + Lambda Web Adapter (src/server/Dockerfile) ----------------
 resource "aws_ecr_repository" "server" {
-  name         = var.name
+  name         = var.project_name
   force_delete = true # destroy must work
 }
 
@@ -117,7 +117,7 @@ resource "aws_iam_role_policy" "lambda" {
 
 # ---------------- Vault: one Lambda, no URL of its own (only the proxy invokes it) ----------------
 resource "aws_lambda_function" "server" {
-  function_name = "${var.name}-lambda"
+  function_name = "${var.project_name}-lambda"
   role          = aws_iam_role.lambda.arn
   package_type  = "Image"
   image_uri     = local.image_uri
@@ -147,7 +147,7 @@ data "archive_file" "proxy" {
 }
 
 resource "aws_iam_role" "proxy" {
-  name = "${var.name}-proxy-role"
+  name = "${var.project_name}-proxy-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -159,7 +159,7 @@ resource "aws_iam_role" "proxy" {
 }
 
 resource "aws_iam_role_policy" "proxy" {
-  name = "${var.name}-proxy-role-policy"
+  name = "${var.project_name}-proxy-role-policy"
   role = aws_iam_role.proxy.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -179,7 +179,7 @@ resource "aws_iam_role_policy" "proxy" {
 }
 
 resource "aws_lambda_function" "proxy" {
-  function_name    = "${var.name}-proxy-lambda"
+  function_name    = "${var.project_name}-proxy-lambda"
   role             = aws_iam_role.proxy.arn
   runtime          = "python3.12"
   architectures    = [var.architecture]

@@ -28,8 +28,8 @@ variable "env" {
   default     = "dev"
 }
 
-variable "name" {
-  description = "Deployment name: resources are <name>-lambda, <name>-<account id> (bucket), <name> (ECR)"
+variable "project_name" {
+  description = "Deployment name: resources are <project_name>-lambda, <project_name>-<account id> (bucket), <project_name> (ECR)"
   type        = string
   default     = "lambdavault"
 }
