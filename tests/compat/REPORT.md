@@ -1,6 +1,6 @@
 # lambdavault compatibility report · [tasks](TASKS.md)
 
-Generated 2026-10-28 by `pytest tests` · lambdavault 0.1.0 · Python 3.9.6
+Generated 2026-10-29 by `pytest tests` · lambdavault 0.1.0 · Python 3.9.6
 
 Each row is one feature exercised the same way on the reference and on the project; results, types and errors must match. The feature list only grows (a removed case would show in git), so the support percentage can only move up.
 
