@@ -1,7 +1,7 @@
 # lambdavault
 
 **HashiCorp Vault, truly serverless: the official Vault binary on AWS Lambda, data in S3, auto-unseal by KMS,
-≈ $1 a month when idle.** Part of [Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless).
+≈ $1 a month when idle.** Part of [IdleFree](https://cloudformer.github.io/).
 
 ![lambdavault architecture](https://raw.githubusercontent.com/cloudformer/lambdavault/main/docs/architecture.svg)
 

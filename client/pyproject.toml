@@ -25,6 +25,7 @@ lambdavault = "lambdavault.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/cloudformer/lambdavault"
+IdleFree = "https://cloudformer.github.io/"
 Repository = "https://github.com/cloudformer/lambdavault"
 Deploy = "https://github.com/cloudformer/lambdavault#quick-start"
 Compatibility = "https://github.com/cloudformer/lambdavault/blob/main/tests/compat/REPORT.md"

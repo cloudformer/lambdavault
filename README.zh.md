@@ -119,6 +119,5 @@ tests/            回归测试；tests/compat/ Vault vs lambdavault、REPORT.md�
 
 ---
 
-**[Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless)** 系列的一部分：闲置也收费的
-AWS 服务，用闲置 ≈ $0 的积木重做。MIT。Vault 是 HashiCorp 的商标；lambdavault 原样运行 Vault 社区版程序，
+**[IdleFree](https://cloudformer.github.io/#zh)** 系列之一 —— 把空闲也计费的 AWS 服务和自建应用，重建成空闲 ≈ $0。MIT。Vault 是 HashiCorp 的商标；lambdavault 原样运行 Vault 社区版程序，
 遵循其自身的许可证（BSL 1.1）。

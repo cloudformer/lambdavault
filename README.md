@@ -125,6 +125,6 @@ CI runs the suite on every push. A release is a tag: bump the version in `client
 
 ---
 
-Part of **[Redefine AWS Serverless](https://github.com/topics/redefine-aws-serverless)** — AWS services that bill
-while idle, rebuilt on primitives that cost ≈ $0 when idle. MIT. Vault is a trademark of HashiCorp; lambdavault
+Part of **[IdleFree](https://cloudformer.github.io/)** — AWS services and self-hosted apps rebuilt to cost ≈ $0 when
+idle. MIT. Vault is a trademark of HashiCorp; lambdavault
 runs the unmodified Vault Community binary under its own license (BSL 1.1).
