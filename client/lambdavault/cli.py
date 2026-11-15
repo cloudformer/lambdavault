@@ -63,7 +63,15 @@ def cmd_status(args):
           f"  initialized {health.get('initialized')} · sealed {health.get('sealed')} · Vault {health.get('version')}\n"
           f"  one call: {ms:.0f} ms (seconds after idle = a cold start) · UI: {addr}/ui/")
     if not health.get("initialized"):
-        print(f"next: VAULT_ADDR={addr} vault operator init -recovery-shares=1 -recovery-threshold=1")
+        print(f"next: VAULT_ADDR={addr} vault operator init {init_flags(addr)}")
+
+
+def init_flags(addr):
+    """seal = kms (awskms auto-unseal): one recovery key; seal = ssm (Shamir): one unseal key, kept in SSM."""
+    status, seal = call(addr, "/v1/sys/seal-status")
+    if status == 200 and seal.get("type") == "shamir":
+        return "-key-shares=1 -key-threshold=1"
+    return "-recovery-shares=1 -recovery-threshold=1"
 
 
 def cmd_output(args):

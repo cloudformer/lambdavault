@@ -81,7 +81,7 @@
   <!-- ====================== lambdavault ====================== -->
   <rect x="360" y="40" width="700" height="490" rx="12" class="group" stroke="#CBD5E1" stroke-width="1.6"/>
   <text x="380" y="70" class="gtitle" font-size="18" fill="#F8FAFC">lambdavault: HashiCorp Vault, serverless</text>
-  <text x="380" y="88" class="sub">Lambda Function URL as VAULT_ADDR · S3 + KMS · ≈ $1 / month when idle (the KMS key)</text>
+  <text x="380" y="88" class="sub">Lambda Function URL as VAULT_ADDR · S3 · ≈ $0 when idle (seal = ssm) · ≈ $1 / month (seal = kms)</text>
 
   <!-- Lambda -->
   <rect x="400" y="110" width="400" height="230" rx="9" class="group"/>
@@ -96,7 +96,7 @@
     <rect width="22" height="22" rx="4" class="callout"/><text x="11" y="16" text-anchor="middle" class="callout-text">2</text>
     <text x="30" y="16" class="step">Web Adapter: invocation → HTTP to 127.0.0.1:8200</text>
     <rect y="44" width="22" height="22" rx="4" class="callout"/><text x="11" y="60" text-anchor="middle" class="callout-text">3</text>
-    <text x="30" y="60" class="step">cold start: read state from S3, unseal with KMS</text>
+    <text x="30" y="60" class="step">cold start: read state from S3, unseal (SSM key or KMS)</text>
     <rect y="88" width="22" height="22" rx="4" class="callout"/><text x="11" y="104" text-anchor="middle" class="callout-text">4</text>
     <text x="30" y="104" class="step">reserved concurrency 1: one Vault process writes</text>
     <text x="30" y="120" class="step">arm64 (default) or x86_64 — both images built</text>
@@ -121,7 +121,7 @@
     <rect width="86" height="86" rx="10" fill="url(#gSecurity)"/>
     <circle cx="33" cy="43" r="12" class="glyph"/>
     <path d="M45 43 H68 M60 43 V53 M67 43 V50" class="glyph"/>
-    <text x="43" y="108" text-anchor="middle" class="label">KMS: seal key</text>
+    <text x="43" y="108" text-anchor="middle" class="label">SSM key or KMS</text>
   </g>
   <path d="M760 340 L 885 420" class="edge" marker-end="url(#arrow)"/>
 
@@ -138,5 +138,5 @@
   <text x="570" y="428" class="step">terraform apply builds arm64 + x86_64 images, pushes them,</text>
   <text x="570" y="444" class="step">deploys one; the Vault UI comes with the binary</text>
 
-  <text x="710" y="512" text-anchor="middle" class="sub">Vault encrypts before S3 · root key wrapped by KMS · one writer · nothing runs while idle</text>
+  <text x="710" y="512" text-anchor="middle" class="sub">Vault encrypts before S3 · unseal key in SSM (or KMS) · one writer · nothing runs while idle</text>
 </svg>

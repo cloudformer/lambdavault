@@ -118,8 +118,9 @@ s3rds (github.com/cloudformer/s3rds) is the reference implementation; when in do
 ## Layout (do not move things)
 
 ```
-src/server/       lambda_function.py (shared helpers on top, routes below), index.html (console)
 client/<project>/ the pip package; pyproject.toml; README.md is the PyPI page
+client/lambdavault/server/  the Vault image's build context: Dockerfile, vault.hcl, seal-awskms.hcl, entrypoint.sh
+client/lambdavault/proxy/   the proxy Lambda (the Function URL): lambda_function.py
 terraform/ cloudformation/ (optional, after 0.1.0)
 tests/            regression; tests/compat/ compatibility (conftest = harness, test_<ref>.py = feature list,
                   REPORT.md generated, TASKS.md numbered tasks), tests/compat_report.py (edit CONFIG only)

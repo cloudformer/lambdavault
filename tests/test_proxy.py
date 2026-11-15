@@ -8,8 +8,9 @@ import pytest
 
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-2")
 os.environ.setdefault("VAULT_FUNCTION", "lambdavault-lambda")
+os.environ.setdefault("SEAL", "kms")   # seal = ssm: test_seal.py
 spec = importlib.util.spec_from_file_location(
-    "proxy", os.path.join(os.path.dirname(__file__), "..", "src", "proxy", "lambda_function.py"))
+    "proxy", os.path.join(os.path.dirname(__file__), "..", "client", "lambdavault", "proxy", "lambda_function.py"))
 proxy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(proxy)
 

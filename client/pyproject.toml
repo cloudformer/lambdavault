@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lambdavault"
-version = "0.1.0"
-description = "HashiCorp Vault on AWS Lambda + S3 + KMS, ≈ $0 when idle. The vault CLI, hvac and the Terraform vault provider talk to it unchanged; this package is the helper: status, output."
+version = "0.1.1"
+description = "HashiCorp Vault on AWS Lambda + S3, ≈ $0 when idle. The vault CLI, hvac and the Terraform vault provider talk to it unchanged; this package is the helper: status, output."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -33,4 +33,7 @@ Changelog = "https://github.com/cloudformer/lambdavault/blob/main/CHANGELOG.md"
 Issues = "https://github.com/cloudformer/lambdavault/issues"
 
 [tool.setuptools]
-packages = ["lambdavault"]
+packages = ["lambdavault", "lambdavault.server", "lambdavault.proxy"]   # server = the image's build context, proxy = the proxy Lambda's zip
+
+[tool.setuptools.package-data]
+"lambdavault.server" = ["Dockerfile", "vault.hcl", "seal-awskms.hcl", "entrypoint.sh"]

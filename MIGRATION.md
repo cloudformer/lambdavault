@@ -24,8 +24,9 @@ same Vault, only the storage changes.
    vault operator migrate -config=migrate.hcl
    ```
 
-3. Start the new cluster with the same `seal "awskms"` key (`terraform output kms_key_id`), so it unseals the
-   migrated data; then change `VAULT_ADDR` everywhere.
+3. Start the new cluster with the same seal, so it unseals the migrated data: `seal = kms` → the same
+   `seal "awskms"` key (`terraform output kms_key_id`); `seal = ssm` → no seal stanza (Shamir), unsealed with the
+   key in SSM (`terraform output unseal_key_parameter`). Then change `VAULT_ADDR` everywhere.
 4. Delete the stack: `terraform -chdir=terraform destroy -var-file=my.json` (set `force_destroy = true` first if
    the bucket should go with it).
 

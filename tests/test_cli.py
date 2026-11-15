@@ -11,8 +11,9 @@ from lambdavault import cli
 
 @pytest.fixture
 def vault():
-    """A Vault that answers sys/health; state["busy"] answers 429 that many times first."""
-    state = {"busy": 0, "initialized": True}
+    """A Vault that answers sys/health and sys/seal-status (one body for both); state["busy"] answers 429 that
+    many times first; state["type"] is the seal: awskms (seal = kms) or shamir (seal = ssm)."""
+    state = {"busy": 0, "initialized": True, "type": "awskms"}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -20,7 +21,7 @@ def vault():
 
         def do_GET(self):
             code, body = (429, {"errors": ["busy"]}) if state["busy"] else \
-                (200, {"initialized": state["initialized"], "sealed": False, "version": "2.2.0"})
+                (200, {"initialized": state["initialized"], "sealed": False, "version": "2.2.0", "type": state["type"]})
             state["busy"] = max(0, state["busy"] - 1)
             data = json.dumps(body).encode()
             self.send_response(code)
@@ -68,6 +69,12 @@ def test_status_says_how_to_initialize(terraform, vault, capsys):
     vault["initialized"] = False
     cli.main(["status"])
     assert "vault operator init -recovery-shares=1 -recovery-threshold=1" in capsys.readouterr().out
+
+
+def test_status_says_how_to_initialize_with_the_ssm_seal(terraform, vault, capsys):
+    vault["initialized"], vault["type"] = False, "shamir"
+    cli.main(["status"])
+    assert "vault operator init -key-shares=1 -key-threshold=1" in capsys.readouterr().out
 
 
 def test_busy_function_is_retried(terraform, vault, capsys):

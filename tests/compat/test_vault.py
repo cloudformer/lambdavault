@@ -3,7 +3,7 @@
     python3 -m pytest tests -q --docker run --aws <var-file>   Vault in Docker vs the deployed lambdavault
 
 The feature list only grows. Both sides run the same Vault binary; what this proves is that Vault on Lambda
-(s3 storage, KMS auto-unseal, one process at a time, cold starts) answers exactly like a normal Vault.
+(s3 storage, auto-unseal at a cold start, one process at a time, cold starts) answers exactly like a normal Vault.
 """
 import pytest
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.1 — 2026-11-15
+
+The server ships in the pip package and a free seal is the default.
+
+- `src/server/` moved to `client/lambdavault/server/` (the Vault image's Docker build context) and `src/proxy/` to
+  `client/lambdavault/proxy/`, so a deployment can come from a PyPI release; `terraform/` now calls the Registry
+  module `cloudformer/infra/aws//modules/lambdavault`. The image is still built with Docker from these files.
+- `seal`: `ssm` (default, free) or `kms` (≈ $1 / month, the 0.1.0 behaviour). `ssm` = Vault's Shamir seal with one
+  key share, kept as the SSM SecureString `/<project_name>/unseal-key`: the proxy stores it at
+  `vault operator init -key-shares=1 -key-threshold=1` (other inits are refused) and unseals the running Vault;
+  `entrypoint.sh` reads it at every cold start and unseals before the first request. A key that cannot be read
+  leaves Vault sealed (fail closed). A deployed vault keeps its seal: switching needs a seal migration.
+- The image adds `curl` (the SSM call) and starts through `entrypoint.sh`; `seal "awskms"` moved from `vault.hcl`
+  to `seal-awskms.hcl`, used only with `kms`.
+- `lambdavault status` names the right init flags for the seal.
+
 ## 0.1.0 — 2026-10-28
 
 First release: HashiCorp Vault Community 2.2.0, unchanged, on AWS Lambda.
