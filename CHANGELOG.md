@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 — 2026-11-15
+
+The image builds again: the official Vault image runs as the `vault` user, so installing curl (for the
+ssm seal) now runs as root for that one step and switches back. 0.1.1's image did not build.
+
 ## 0.1.1 — 2026-11-15
 
 The server ships in the pip package and a free seal is the default.

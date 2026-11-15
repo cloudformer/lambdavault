@@ -4,7 +4,10 @@ FROM public.ecr.aws/awsguru/aws-lambda-adapter:1.0.1 AS adapter
 
 FROM hashicorp/vault:2.2.0
 # curl: entrypoint.sh reads the unseal key from SSM (SigV4) and talks to Vault (seal = ssm)
+# the image runs as the vault user: root only for installing, then back
+USER root
 RUN apk add --no-cache curl
+USER vault
 COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
 COPY vault.hcl seal-awskms.hcl entrypoint.sh /etc/lambdavault/
 
