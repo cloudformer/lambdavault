@@ -8,5 +8,6 @@
 
   "architecture": "arm64",
   "memory_size": 1024,
+  "seal": { "type": "ssm", "kms_deletion_window_days": 7 },
   "force_destroy": false
 }

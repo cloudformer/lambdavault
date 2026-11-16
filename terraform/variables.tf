@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "aws_profile" {
-  description = "Local AWS CLI profile to use (also for the ECR login of the image push); \"\" = default credential chain"
+  description = "Local AWS CLI profile to use; \"\" = default credential chain"
   type        = string
   default     = ""
 }
@@ -29,7 +29,7 @@ variable "env" {
 }
 
 variable "project_name" {
-  description = "Deployment name: resources are <project_name>-lambda, <project_name>-<account id> (bucket), <project_name> (ECR)"
+  description = "Deployment name: resources are <project_name>-lambda, <project_name>-proxy-lambda, <project_name>-<account id> (bucket), <project_name> (ECR)"
   type        = string
   default     = "lambdavault"
 }
@@ -49,6 +49,15 @@ variable "memory_size" {
   description = "Lambda memory in MB (CPU scales with it; Vault starts faster with more)"
   type        = number
   default     = 1024
+}
+
+variable "seal" {
+  description = "type = ssm (free): one unseal key in the SSM SecureString /<project_name>/unseal-key, written at init. type = kms (≈ $1 / month): a KMS key, Vault's awskms auto-unseal; kms_deletion_window_days 7-30. Fixed at the first init: switching an initialized vault needs a seal migration."
+  type = object({
+    type                     = string
+    kms_deletion_window_days = optional(number, 7)
+  })
+  default = { type = "ssm" }
 }
 
 variable "force_destroy" {
