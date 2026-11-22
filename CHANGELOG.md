@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 — 2026-11-22
+
+- Docs: a console diagram under `docs/` (SVG), embedded in the README and the PyPI page. No code change.
+
 ## 0.1.2 — 2026-11-15
 
 The image builds again: the official Vault image runs as the `vault` user, so installing curl (for the
