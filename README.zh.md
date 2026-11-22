@@ -8,6 +8,8 @@
 
 [English](README.md) · [兼容性报告](tests/compat/REPORT.md) · [任务](tests/compat/TASKS.md) · [更新记录](CHANGELOG.md)
 
+![控制台](docs/console.svg)
+
 ![architecture](docs/architecture.svg)
 
 | | 自己部署在 EC2 | HCP Vault Dedicated | lambdavault |

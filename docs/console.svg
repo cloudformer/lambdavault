@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" width="1100" height="560"
+     font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .win   { fill: #0F1620; stroke: #26323B; stroke-width: 1.4; }
+      .bar   { fill: #0F1620; }
+      .panel { fill: #141C24; stroke: #26323B; stroke-width: 1.2; }
+      .brand { font-size: 17px; font-weight: 700; fill: #E6ECF0; }
+      .k     { font-size: 11px; fill: #8A97A3; }
+      .chip  { fill: #1E2A32; stroke: #2B3843; stroke-width: 1; }
+      .chipt { font: 12px ui-monospace, Menlo, monospace; fill: #CBD5E1; }
+      .fold  { font-size: 14px; font-weight: 600; fill: #E6ECF0; }
+      .hint  { font-size: 12px; fill: #8A97A3; }
+      .mono  { font: 12px ui-monospace, Menlo, monospace; fill: #8A97A3; }
+      .what  { font-size: 13px; fill: #E6ECF0; }
+      .badge { stroke-width: 1; }
+      .bok   { fill: #11302B; stroke: #4FD1B0; } .bokt { font-size: 11.5px; font-weight: 600; fill: #4FD1B0; }
+      .code  { fill: #0A0E13; }
+      .cl    { font: 13px ui-monospace, Menlo, monospace; fill: #E2E8F0; }
+      .cp    { font: 13px ui-monospace, Menlo, monospace; fill: #4FD1B0; }
+      .cc    { font: 13px ui-monospace, Menlo, monospace; fill: #8A97A3; }
+      .cok   { font: 13px ui-monospace, Menlo, monospace; fill: #6EE7B7; }
+      .status{ fill: #0F1620; stroke: #26323B; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="560" rx="14" fill="#0A0F14"/>
+  <rect x="16" y="14" width="1068" height="532" rx="12" class="win"/>
+
+  <!-- top bar -->
+  <rect x="17" y="15" width="1066" height="46" rx="12" class="bar"/>
+  <line x1="17" y1="61" x2="1083" y2="61" stroke="#26323B" stroke-width="1.2"/>
+  <text x="40" y="44" class="brand">🔐 lambdavault</text>
+  <text x="220" y="36" class="k">VAULT_ADDR</text>
+  <rect x="220" y="41" width="250" height="14" rx="7" class="chip"/>
+  <text x="228" y="52" class="chipt">https://lambdavault-...lambda-url.aws</text>
+  <rect x="980" y="30" width="88" height="22" rx="6" class="badge bok"/>
+  <text x="1024" y="45" text-anchor="middle" class="bokt">≈ $0 idle</text>
+
+  <!-- note panel -->
+  <rect x="40" y="80" width="1020" height="70" rx="10" class="panel"/>
+  <text x="58" y="106" class="fold">The console is Vault's own — unchanged</text>
+  <text x="58" y="130" class="hint">The Vault UI, the `vault` CLI and the Terraform provider all work as they always do. The only change is VAULT_ADDR:
+  point it at the Function URL. Nothing to learn, nothing forked.</text>
+
+  <!-- terminal -->
+  <rect x="40" y="166" width="1020" height="320" rx="10" class="code"/>
+  <text x="62" y="200" class="cc"># point the standard vault CLI at your serverless endpoint</text>
+  <text x="62" y="224" class="cp">$ <tspan class="cl">export VAULT_ADDR=https://lambdavault-xxxx.lambda-url.us-east-2.on.aws</tspan></text>
+  <text x="62" y="252" class="cp">$ <tspan class="cl">vault login -method=userpass username=frank</tspan></text>
+  <text x="62" y="276" class="cok">Success! You are now authenticated.</text>
+  <text x="62" y="308" class="cp">$ <tspan class="cl">vault kv put secret/github token=ghp_xxxxxxxx</tspan></text>
+  <text x="62" y="332" class="cok">Success! Data written to: secret/github</text>
+  <text x="62" y="364" class="cp">$ <tspan class="cl">vault kv get secret/github</tspan></text>
+  <text x="62" y="388" class="cl">====== Data ======</text>
+  <text x="62" y="408" class="cl">Key      Value</text>
+  <text x="62" y="428" class="cl">token    ghp_xxxxxxxx</text>
+  <text x="62" y="460" class="cc"># same UI in the browser, same Terraform `vault` provider — only VAULT_ADDR changed</text>
+
+  <!-- status bar -->
+  <rect x="17" y="500" width="1066" height="32" rx="12" class="status"/>
+  <text x="40" y="520" class="mono" fill="#4FD1B0">HashiCorp Vault on Lambda + S3 + KMS · idle-free</text>
+  <text x="1060" y="520" text-anchor="end" class="mono">lambdavault 0.1.2</text>
+</svg>

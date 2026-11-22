@@ -3,6 +3,8 @@
 **HashiCorp Vault, truly serverless: the official Vault binary on AWS Lambda, data in S3, the unseal key in SSM
 Parameter Store, ≈ $0 when idle (or KMS auto-unseal, ≈ $1 a month).** Part of [IdleFree](https://cloudformer.github.io/).
 
+![lambdavault console](https://raw.githubusercontent.com/cloudformer/lambdavault/main/docs/console.svg)
+
 ![lambdavault architecture](https://raw.githubusercontent.com/cloudformer/lambdavault/main/docs/architecture.svg)
 
 The vault CLI, the Terraform vault provider, the UI and hvac are the clients — unchanged, only `VAULT_ADDR`
